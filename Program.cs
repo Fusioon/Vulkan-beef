@@ -38,7 +38,7 @@ namespace BeefVulkanGenerator
         static string CORE_BASE_TYPES = @"
 using System;
 
-namespace vk
+namespace Vulkan
 {
 	typealias Flags = uint32;
 	typealias DeviceSize = uint64;
@@ -74,7 +74,7 @@ namespace vk
         static string WIN32_BASE_TYPES = @"
 using System;
 
-namespace vk.win32
+namespace Vulkan.Win32
 {
 	typealias HINSTANCE = Windows.HInstance;
 	typealias HWND = Windows.HWnd;
@@ -841,7 +841,7 @@ namespace vk.win32
                             if(fnResultType != EResultType.Unknown)
                             {
                                 string lastParamType = lastParam.Value.Substring(0, lastParam.Value.Length - 1);
-                                string resultType = fnResultType == EResultType.Result  ? $"Result<{lastParamType}, vk.Result>" : lastParamType;
+                                string resultType = fnResultType == EResultType.Result  ? $"Result<{lastParamType}, Vulkan.Result>" : lastParamType;
                                 paramBuilder.Length -= (lastParam.Key.Length + lastParamType.Length + 2);
                                 callBuilder.Length -= (lastParam.Key.Length + 1);
                                 Buffer.Append($"\t\tpublic {resultType} {fnName}<Dispatch>({paramBuilder} Dispatch d) where Dispatch : var\n\t\t{{\n");
@@ -910,7 +910,7 @@ namespace vk.win32
                         if(fnResultType != EResultType.Unknown) // @TODO - can't propertly overload mixins :(
                         {
                             string lastParamType = lastParam.Value.Substring(0, lastParam.Value.Length - 1);
-                            string resultType = fnResultType == EResultType.Result ? $"Result<{lastParamType}[], vk.Result>" : $"{lastParamType}";
+                            string resultType = fnResultType == EResultType.Result ? $"Result<{lastParamType}[], Vulkan.Result>" : $"{lastParamType}";
 
                             // Remove last param
                             paramBuilder.Length -= (lastParam.Key.Length + lastParamType.Length + 2);
@@ -1008,8 +1008,8 @@ namespace vk.win32
             return Buffer.ToString();
         }
 
-        const string DefaultNamespace = "vk";
-        static string Namespace = "vk";
+        const string DefaultNamespace = "Vulkan";
+        static string Namespace = "Vulkan";
 
 
         static bool GetNextIfAvailable(string[] args, int i, ref string result)
