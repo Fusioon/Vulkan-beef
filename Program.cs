@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Runtime.InteropServices.ComTypes;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
@@ -10,7 +10,15 @@ using System.Threading.Tasks;
 namespace BeefVulkanGenerator
 {
     class Program
-    {   
+    {
+        const string DefaultNamespace = "Vulkan";
+
+        const string WindowsNamespace = "Win32";
+        const string MacOSNamespace = "macOS";
+
+
+        static string Namespace;
+
         static (string, string)[] replaceTypes = new (string, string)[]
         {
             ("char", "char8"),
@@ -38,7 +46,7 @@ namespace BeefVulkanGenerator
         static string CORE_BASE_TYPES = @"
 using System;
 
-namespace Vulkan
+namespace %NAMESPACE%
 {
 	typealias Flags = uint32;
 	typealias DeviceSize = uint64;
@@ -71,10 +79,35 @@ namespace Vulkan
 }
 ";
 
+        static string CORE_CUSTOM_FUNCTIONS = @"
+using System;
+
+namespace %NAMESPACE%
+{
+	public static
+	{
+		public static mixin MakeVersion(uint32 major, uint32 minor, uint32 patch)
+		{
+			(((major) << 22) | ((minor) << 12) | (patch))
+		}
+
+		public static Result<Instance, Result> CreateInstance<Dispatch>(ref InstanceCreateInfo createInfo, AllocationCallbacks* pAllocator, Dispatch d) where Dispatch : var
+		{
+			Instance inst = ?;
+			Result result = d.vkCreateInstance(&createInfo, pAllocator, &inst);
+			if(result == .Success) return inst;
+
+			return .Err(result);
+		}
+		public static Result<Instance, Result> CreateInstance(ref InstanceCreateInfo createInfo, AllocationCallbacks* pAllocator) => CreateInstance<DispatchLoaderStatic>(ref createInfo, pAllocator, .());
+	}
+}
+";
+
         static string WIN32_BASE_TYPES = @"
 using System;
 
-namespace Vulkan.Win32
+namespace %NAMESPACE%
 {
 	typealias HINSTANCE = Windows.HInstance;
 	typealias HWND = Windows.HWnd;
@@ -91,7 +124,7 @@ namespace Vulkan.Win32
 	}
 }";
 
-        static string MACOS_BASE_TYPES = null;
+        
 
         static StringBuilder Buffer = new StringBuilder();
 
@@ -160,7 +193,7 @@ namespace Vulkan.Win32
         {
             string[] toUppercaseLastParts = new string[]
             {
-                "KHR", "EXT", "NV", "AMD", "INTEL", "NVX", "GOOGLE", 
+                "KHR", "EXT", "NV", "AMD", "INTEL", "NVX", "GOOGLE",
                 "QCOM",
             };
 
@@ -468,7 +501,6 @@ namespace Vulkan.Win32
 
             Buffer.Append($"using System;\n\nnamespace {Namespace} \n{{\n");
             Buffer.Append("\tpublic static \n\t{\n");
-            //Buffer.Append("\t\tpublic static mixin MakeVersion(uint32 major, uint32 minor, uint32 patch) { (((major) << 22) | ((minor) << 12) | (patch)) }\n");
             var matches = Regex.Matches(sb, @"#define (\w\S+) ([^\n]+)");
             foreach (Match m in matches)
             {
@@ -504,7 +536,6 @@ namespace Vulkan.Win32
                 if (value.StartsWith("VK_MAKE_VERSION"))
                 {
                     value = Regex.Replace(value, @"VK_MAKE_VERSION\(([\d\w]+),\s*([\d\w]+),\s([\d\w]+)\)", "MakeVersion!($1, $2, $3)");
-                    //value = Regex.Replace(value, @"VK_MAKE_VERSION\(([\d\w]+),\s*([\d\w]+),\s([\d\w]+)\)", "((($1) << 22) | (($2) << 12) | ($3));");
                     type = "uint32";
                 }
 
@@ -651,7 +682,7 @@ namespace Vulkan.Win32
 
 
                 var func = $"{resultType} {newName}({paramsBuilder})";
-                Buffer.Append($"\t\t[LinkName(\"{name}\"), CallingConvention(.Stdcall)]\n\t\tpublic static extern {func};\n\n");
+                Buffer.Append($"\t\t[CLink, CallingConvention(.Stdcall)]\n\t\tpublic static extern {func};\n\n");
                 //Buffer.Append($"\t\t[CallingConvention(.Stdcall)]\n\t\tpublic static extern {func};\n\n");
 
             }
@@ -763,14 +794,7 @@ namespace Vulkan.Win32
                     var preLastParam = _params.ElementAt(_params.Count - 2);
                     if (preLastParam.Key.EndsWith("Count") && string.Compare(preLastParam.Value, "uint32*") == 0)
                     {
-                        //string args = "";
-                        //foreach(var v in f.Value._params)
-                        //{
-                        //    args += $", {v.Value} {v.Key}";
-                        //}
-                        //args = args.Substring(2);
-                        //Console.WriteLine("Skiping function returning array: '{2} {0}({1})'", f.Value.name, args, f.Value.returnType);
-                        //arrayFunction
+
                         arrayFunction.Add(f.Key);
                         continue;
                     }
@@ -784,7 +808,7 @@ namespace Vulkan.Win32
 
             string CreateFunctionWithStaticLoader<ParamT, CallT>(string resultType, string fnName, ParamT _params, CallT callArgs, bool mixin = false)
             {
-                if(mixin)
+                if (mixin)
                     return $"\t\tpublic mixin {fnName}({_params}) => {fnName}!({callArgs}{defaultDispatchLoader}());\n";
 
                 return $"\t\tpublic {resultType} {fnName}({_params}) => {fnName}<{defaultDispatchLoader}>({callArgs}.());\n";
@@ -835,18 +859,18 @@ namespace Vulkan.Win32
 
                     if (lastArgs.Contains(f.name))
                     {
-                        if(f.name.Contains("Create") || f.name.Contains("Get") /*|| f.name.Contains("Allocate")*/)
+                        if (f.name.Contains("Create") || f.name.Contains("Get") /*|| f.name.Contains("Allocate")*/)
                         {
                             var lastParam = f._params.Last();
-                            if(fnResultType != EResultType.Unknown)
+                            if (fnResultType != EResultType.Unknown)
                             {
                                 string lastParamType = lastParam.Value.Substring(0, lastParam.Value.Length - 1);
-                                string resultType = fnResultType == EResultType.Result  ? $"Result<{lastParamType}, Vulkan.Result>" : lastParamType;
+                                string resultType = fnResultType == EResultType.Result ? $"Result<{lastParamType}, {DefaultNamespace}.Result>" : lastParamType;
                                 paramBuilder.Length -= (lastParam.Key.Length + lastParamType.Length + 2);
                                 callBuilder.Length -= (lastParam.Key.Length + 1);
                                 Buffer.Append($"\t\tpublic {resultType} {fnName}<Dispatch>({paramBuilder} Dispatch d) where Dispatch : var\n\t\t{{\n");
                                 Buffer.Append($"\t\t\t{lastParamType} _ret_val = ?;\n");
-                                if(fnResultType == EResultType.Result)
+                                if (fnResultType == EResultType.Result)
                                 {
                                     Buffer.Append($"\t\t\tlet result = {fnName}({callBuilder} &_ret_val, d);\n");
                                     Buffer.Append("\t\t\tif(result != .Success) return .Err(result);\n");
@@ -863,54 +887,24 @@ namespace Vulkan.Win32
                                 Buffer.Append(CreateFunctionWithStaticLoader(resultType, fnName, paramBuilder, callBuilder));
                             }
 
-                            //if (f.returnType == "Result")
-                            //{
-                            //    string lastParamType = lastParam.Value.Substring(0, lastParam.Value.Length - 1);
-                            //    string resultType = $"Result<{lastParamType}, vk.Result>";
-                            //    paramBuilder.Length -= (lastParam.Key.Length + lastParamType.Length + 2);
-                            //    callBuilder.Length -= (lastParam.Key.Length + 1);
-                            //    Buffer.Append($"\t\tpublic {resultType} {fnName}<Dispatch>({paramBuilder} Dispatch d) where Dispatch : var\n\t\t{{\n");
-                            //    Buffer.Append($"\t\t\t{lastParamType} _ret_val = ?;\n");
-                            //    Buffer.Append($"\t\t\tvk.ReturnSuccess!({fnName}({callBuilder} &_ret_val), _ret_val);\n");
-                            //    Buffer.Append("\t\t}\n");
 
-                            //    if (paramBuilder.Length > 0) paramBuilder.Length--;
-                            //    Buffer.Append(CreateFunctionWithStaticLoader(resultType, fnName, paramBuilder, callBuilder));
-                            //    //Buffer.Append($"\t\tpublic {resultType} {fnName}({paramBuilder}) => {fnName}<DispatchLoaderStatic>({callBuilder}.());\n");
-                            //}
-                            //else if (f.returnType == "void")
-                            //{
-                            //    string lastParamType = lastParam.Value.Substring(0, lastParam.Value.Length - 1);
-                            //    string resultType = lastParamType;
-                            //    paramBuilder.Length -= (lastParam.Key.Length + lastParamType.Length + 2);
-                            //    callBuilder.Length -= (lastParam.Key.Length + 1);
-                            //    Buffer.Append($"\t\tpublic {resultType} {fnName}<Dispatch>({paramBuilder} Dispatch d) where Dispatch : var\n\t\t{{\n");
-                            //    Buffer.Append($"\t\t\t{lastParamType} _ret_val = ?;\n");
-                            //    Buffer.Append($"\t\t\t{fnName}({callBuilder} &_ret_val);\n");
-                            //    Buffer.Append($"\t\t\treturn _ret_val;\n");
-                            //    Buffer.Append("\t\t}\n");
-
-                            //    if (paramBuilder.Length > 0) paramBuilder.Length--;
-                            //    Buffer.Append(CreateFunctionWithStaticLoader(resultType, fnName, paramBuilder, callBuilder));
-                            //    //Buffer.Append($"\t\tpublic {resultType} {fnName}({paramBuilder}) => {fnName}<DispatchLoaderStatic>({callBuilder}.());\n");
-                            //}
                         }
                         else
                         {
-                           Console.WriteLine($"Skipping {f.name} not containing Get|Create");
+                            Console.WriteLine($"Skipping {f.name} not containing Get|Create");
                         }
                     }
-                   
+
 
                     if (arrayFunction.Contains(f.name)) // Functions returning arrays
                     {
                         var lastParam = f._params.Last();
                         var preLastParam = f._params.ElementAt(f._params.Count - 2);
 
-                        if(fnResultType != EResultType.Unknown) // @TODO - can't propertly overload mixins :(
+                        if (fnResultType != EResultType.Unknown) // @TODO - can't propertly overload mixins :(
                         {
                             string lastParamType = lastParam.Value.Substring(0, lastParam.Value.Length - 1);
-                            string resultType = fnResultType == EResultType.Result ? $"Result<{lastParamType}[], Vulkan.Result>" : $"{lastParamType}";
+                            string resultType = fnResultType == EResultType.Result ? $"Result<{lastParamType}[], {DefaultNamespace}.Result>" : $"{lastParamType}";
 
                             // Remove last param
                             paramBuilder.Length -= (lastParam.Key.Length + lastParamType.Length + 2);
@@ -919,7 +913,7 @@ namespace Vulkan.Win32
                             paramBuilder.Length -= (preLastParam.Key.Length + preLastParam.Value.Length + 2);
                             callBuilder.Length -= (preLastParam.Key.Length + 1);
 
-                            if(paramBuilder.Length > 0) paramBuilder.Length--;
+                            if (paramBuilder.Length > 0) paramBuilder.Length--;
 
                             const string k_Allocator = "scope::";   // Should be scoped allocator (new:ScopedAllocator!) :( can't use mixin inside mixin
 
@@ -929,7 +923,7 @@ namespace Vulkan.Win32
                             Buffer.Append($"\t\t\tuint32 count = 0;\n");
                             Buffer.Append($"\t\t\t{fnName}({callBuilder} &count, null);\n");
                             Buffer.Append($"\t\t\t{lastParamType}[] values = {k_Allocator} .[count];\n");
-                            if(fnResultType == EResultType.Result)
+                            if (fnResultType == EResultType.Result)
                             {
                                 Buffer.Append($"\t\t\tlet result = {fnName}({callBuilder} &count, values.CArray());\n");
                                 Buffer.Append($"\t\t\tif(result != .Success) {resultType}.Err(result);\n");
@@ -948,55 +942,6 @@ namespace Vulkan.Win32
 
                         }
 
-                        //if (f.returnType == "Result")
-                        //{
-                        //    string lastParamType = lastParam.Value.Substring(0, lastParam.Value.Length - 1);
-                        //    string resultType = $"Result<{lastParamType}[], vk.Result>";
-
-                        //    // Remove last param
-                        //    paramBuilder.Length -= (lastParam.Key.Length + lastParamType.Length + 2);
-                        //    callBuilder.Length -= (lastParam.Key.Length + 1);
-
-                        //    paramBuilder.Length -= (preLastParam.Key.Length + preLastParam.Value.Length + 2);
-                        //    callBuilder.Length -= (preLastParam.Key.Length + 1);
-
-                        //    Buffer.Append($"\t\tpublic mixin {fnName}<Dispatch>({paramBuilder} Dispatch d) where Dispatch : var\n\t\t{{\n");
-                        //    Buffer.Append($"\t\t\tuint32 count = 0;\n");
-                        //    Buffer.Append($"\t\t\t{fnName}({callBuilder} &count, null);\n");
-                        //    Buffer.Append($"\t\t\t{lastParamType}[] values = new .[count];\n");
-                        //    Buffer.Append($"\t\t\tvk.Result result;\n");
-                        //    Buffer.Append($"\t\t\tif( (result = {fnName}({callBuilder} &count, values.CArray())) == .Success) return values;\n");
-                        //    Buffer.Append($"\t\t\tdelete values;\n");
-                        //    Buffer.Append($"\t\t\treturn .Err(result);\n");
-                        //    Buffer.Append("\t\t}\n");
-
-                        //    if (paramBuilder.Length > 0) paramBuilder.Length--;
-                        //    Buffer.Append(CreateFunctionWithStaticLoader(resultType, fnName, paramBuilder, callBuilder));
-                        //    //Buffer.Append($"\t\tpublic {resultType} {fnName}({paramBuilder}) => {fnName}<DispatchLoaderStatic>({callBuilder}.());\n");
-                        //}
-                        //else if (f.returnType == "void")
-                        //{
-                        //    string lastParamType = lastParam.Value.Substring(0, lastParam.Value.Length - 1);
-                        //    string resultType = $"{lastParamType}[]";
-
-                        //    // Remove last param
-                        //    paramBuilder.Length -= (lastParam.Key.Length + lastParamType.Length + 2);
-                        //    callBuilder.Length -= (lastParam.Key.Length + 1);
-
-                        //    paramBuilder.Length -= (preLastParam.Key.Length + preLastParam.Value.Length + 2);
-                        //    callBuilder.Length -= (preLastParam.Key.Length + 1);
-
-                        //    Buffer.Append($"\t\tpublic {resultType} {fnName}<Dispatch>({paramBuilder} Dispatch d) where Dispatch : var\n\t\t{{\n");
-                        //    Buffer.Append($"\t\t\tuint32 count = 0;\n");
-                        //    Buffer.Append($"\t\t\t{fnName}({callBuilder} &count, null);\n");
-                        //    Buffer.Append($"\t\t\t{lastParamType}[] values = new .[count];\n");
-                        //    Buffer.Append($"\t\t\t{fnName}({callBuilder} &count, values.CArray());\n");
-                        //    Buffer.Append($"\t\t\treturn values;\n");
-                        //    Buffer.Append("\t\t}\n");
-
-                        //    if (paramBuilder.Length > 0) paramBuilder.Length--;
-                        //    Buffer.Append(CreateFunctionWithStaticLoader(resultType, fnName, paramBuilder, callBuilder));
-                        //}
                     }
                 }
 
@@ -1007,10 +952,6 @@ namespace Vulkan.Win32
 
             return Buffer.ToString();
         }
-
-        const string DefaultNamespace = "Vulkan";
-        static string Namespace = "Vulkan";
-
 
         static bool GetNextIfAvailable(string[] args, int i, ref string result)
         {
@@ -1051,39 +992,6 @@ namespace Vulkan.Win32
             return tokens;
         }
 
-        static string EnumValueNameToBeefValueName(string input, IList<string> replace)
-        {
-            var buffer = new StringBuilder(input);
-
-            for (int i = replace.Count - 1; i >= 0; i--)
-            {
-                buffer.Replace(replace[i], "");
-            }
-
-            bool wasUnderscore = true;
-
-            input = buffer.ToString();
-            buffer.Clear();
-            foreach (var c in input)
-            {
-
-                if (c == '_')
-                {
-                    wasUnderscore = true;
-                }
-                else if (wasUnderscore)
-                {
-                    buffer.Append(char.ToUpper(c));
-                    wasUnderscore = false;
-                }
-                else
-                {
-                    buffer.Append(char.ToLower(c));
-                }
-            }
-
-            return buffer.ToString();
-        }
 
         static async Task GenerateFromFile(string filePath, string outputDirectory, string subNamespace = null, string basicTypes = null)
         {
@@ -1116,23 +1024,31 @@ namespace Vulkan.Win32
             }
             var replaced = sb.ToString();
 
-            var enums = CreateEnums(replaced);              // ✓
-            var handles = CreateHandles(replaced);          // ✓
-            var typealiases = CreateTypeAliases(replaced);  // ✓ // Needed for flags which dont are not enums
-            var defines = CreateConstants(replaced);        // ✓
-            var structs = CreateStructsAndUnions(replaced); // ✓
+            var enums = CreateEnums(replaced);
+            var handles = CreateHandles(replaced);
+            var typealiases = CreateTypeAliases(replaced);  // Needed for flags which are not enum
+            var defines = CreateConstants(replaced);
+            var structs = CreateStructsAndUnions(replaced);
 
-            var fnPointerTypes = CreateFunctionPointerTypes(replaced);  // ✓
-            var exportedFunctions = CreateExportedFunctions(replaced);  // ✓
+            var fnPointerTypes = CreateFunctionPointerTypes(replaced);
+            var exportedFunctions = CreateExportedFunctions(replaced);
 
-            var dispatchers = CreateDispatchers();          // ✓
-            var handleWrappers = CreateHandleWrappers();    // ✓
+            var dispatchers = CreateDispatchers();
+            var handleWrappers = CreateHandleWrappers();
 
             // Write all to files
 
             Directory.CreateDirectory(outputDirectory);
 
-            if(!string.IsNullOrEmpty(basicTypes)) File.WriteAllText(Path.Combine(outputDirectory, "BasicTypes.bf"), basicTypes);
+            if (!string.IsNullOrEmpty(basicTypes))
+            {
+                File.WriteAllText(Path.Combine(outputDirectory, "BasicTypes.bf"), basicTypes.Replace("%NAMESPACE%", Namespace));
+            }
+            
+            if(string.IsNullOrEmpty(subNamespace))
+            {
+                File.WriteAllText(Path.Combine(outputDirectory, "CustomFunctions.bf"), CORE_CUSTOM_FUNCTIONS.Replace("%NAMESPACE%", Namespace));
+            }
 
             File.WriteAllText(Path.Combine(outputDirectory, "Enums.bf"), enums);
             File.WriteAllText(Path.Combine(outputDirectory, "Handles.bf"), handles);
@@ -1147,24 +1063,52 @@ namespace Vulkan.Win32
 
         }
 
+        static bool TryGetVulkanPath(out string path)
+        {
+            string[] EnvVars = { "VULKAN_SDK", "VK_SDK_PATH" };
+            
+            foreach(var env in EnvVars)
+            {
+                path = Environment.GetEnvironmentVariable(env);
+                if(!string.IsNullOrEmpty(path))
+                {
+                    path = Path.Combine(path, "Include/vulkan");
+                    if (Directory.Exists(path))
+                    {
+                        return true;
+                    }
+
+                }
+            }
+
+            path = null;
+            return false;
+        }
 
         static async Task Main(string[] args)
         {
-  
-            if (args.Length == 0) return;
-
+            string inputDirectory;
+            if (args.Length == 0)
+            {
+                if(!TryGetVulkanPath(out inputDirectory))
+                {
+                    Debug.WriteLine("Couldn't get path to Vulkan include directory! Please specify path as first parameter.");
+                    return;
+                }
+            }
+            else
+            {
+                inputDirectory = args[0];
+            }
             string outputDirectory = "./Generated";
 
-            string inputDirectory = args[0];
-
-            
             for (int i = 0; i < args.Length; i++)
             {
                 if (string.Compare(args[i], "--output") == 0)
                 {
                     GetNextIfAvailable(args, i, ref outputDirectory);
                 }
-                
+
             }
 
             ExportedTypes.Add("VkFlags", "Flags");
@@ -1175,9 +1119,9 @@ namespace Vulkan.Win32
 
             await GenerateFromFile(Path.Combine(inputDirectory, "vulkan_core.h"), outputDirectory, null, CORE_BASE_TYPES);
 
-            await GenerateFromFile(Path.Combine(inputDirectory, "vulkan_win32.h"), outputDirectory + "/win32/", "win32", WIN32_BASE_TYPES);
+            await GenerateFromFile(Path.Combine(inputDirectory, "vulkan_win32.h"), outputDirectory + "/win32/", WindowsNamespace, WIN32_BASE_TYPES);
 
-            await GenerateFromFile(Path.Combine(inputDirectory, "vulkan_macos.h"), outputDirectory + "/macos/", "macos", MACOS_BASE_TYPES);
+            await GenerateFromFile(Path.Combine(inputDirectory, "vulkan_macos.h"), outputDirectory + "/macos/", MacOSNamespace, null);
 
         }
     }
