@@ -3,18 +3,20 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using System.Xml;
 
 namespace BeefVulkanGenerator
 {
     class Program
     {
-        const string DefaultNamespace = "Vulkan";
+        const string DefaultNamespace = "vk";
 
-        const string WindowsNamespace = "Win32";
-        const string MacOSNamespace = "macOS";
+        const string WindowsNamespace = "win32";
+        const string MacOSNamespace = "macos";
 
 
         static string Namespace;
@@ -124,7 +126,7 @@ namespace %NAMESPACE%
 	}
 }";
 
-        
+
 
         static StringBuilder Buffer = new StringBuilder();
 
@@ -390,12 +392,17 @@ namespace %NAMESPACE%
             void ForEach(MatchCollection result, bool isUnion)
             {
                 string header = "\t[CRepr]";
-                if (isUnion) header = "\t[CRepr]\n\t[Union]";
+                if (isUnion) header = "\t[CRepr, Union]";
                 foreach (Match m in result)
                 {
                     constructor.Clear();
                     constructorBody.Clear();
-                    constructor.Append("\t\tpublic this(");
+
+                    if (!isUnion)
+                    {
+                        constructor.Append("\t\tpublic this(");
+                    }
+                    
 
                     var name = m.Groups[1].Value;
                     var fieldsStr = m.Groups[2].Value;
@@ -407,7 +414,7 @@ namespace %NAMESPACE%
 
                     if (name == "AccelerationStructureInstanceKHR")
                     {
-                        Buffer.Append($"{header}[Obsolete(\"Couldn't generate Beef representation for this type.\", false)]\npublic struct {name} {{ /*{fieldsStr}*/ }}\n\n");
+                        Buffer.Append($"\t[CRepr, Obsolete(\"Couldn't generate Beef representation for this type.\", false)]\n\tpublic struct {name} \n\t{{ \n\t/*{fieldsStr}*/ }}\n\n");
                         continue;
                     }
 
@@ -463,23 +470,45 @@ namespace %NAMESPACE%
 
                         fieldType = fieldType.Replace("FlagBits", "Flags");
 
+                        if(isUnion)
+                        {
+                            Buffer.Append($"public {fieldType} {fieldName};\n");
+                            constructor.Append($"\t\tpublic this({fieldType} _{fieldName}) {{ {fieldName} = _{fieldName}; }}\n");
 
-                        Buffer.Append($"public {fieldType} {fieldName} = default;\n");
-                        fieldType = Regex.Replace(fieldType, @"\[([A-Z_][a-zA-Z0-9_]+)\]", $"[{Namespace}.$1]");
-                        constructor.Append($"{fieldType} {fieldName}_,");
-                        constructorBody.Append($"\t\t\t{fieldName} = {fieldName}_;\n");
+                        }
+                        else
+                        {
+                            Buffer.Append($"public {fieldType} {fieldName} = default;\n");
+
+                            // This is for array types which have size defined by a constant
+                            // somehow Beef can't find the identifier without the namespace
+                            // Only happens if the types is used as an argument.
+                            fieldType = Regex.Replace(fieldType, @"\[([A-Z_][a-zA-Z0-9_]+)\]", $"[{Namespace}.$1]");
+                            constructor.Append($"{fieldType} {fieldName}_,");
+                            constructorBody.Append($"\t\t\t{fieldName} = {fieldName}_;\n");
+                        }
+                        
                     }
 
-                    Buffer.Append("\n\t\tpublic this() {}\n");
-                    if (constructorBody.Length > 0)
+                    if(isUnion)
                     {
-                        constructor.Length--;
-                        constructor.Append(")\n\t\t{\n");
-                        constructor.Append(constructorBody);
-                        constructor.Append("\t\t}\n");
-
+                        Buffer.Append("\n\t\tpublic this() { this = default; }\n");
                         Buffer.Append(constructor);
                     }
+                    else
+                    {
+                        Buffer.Append("\n\t\tpublic this() {}\n");
+                        if (constructorBody.Length > 0)
+                        {
+                            constructor.Length--;
+                            constructor.Append(")\n\t\t{\n");
+                            constructor.Append(constructorBody);
+                            constructor.Append("\t\t}\n");
+
+                            Buffer.Append(constructor);
+                        }
+                    }
+                    
 
 
 
@@ -545,10 +574,14 @@ namespace %NAMESPACE%
                     value = value.Substring(0, commentIndex);
                 }
                 value = value.Trim();
+                if(type == "uint32")
+                {
+                    value = value.Replace("U", ""); // The U in some contants causes weird type mismatch so we just remove it.
+                }
 
                 Buffer.Append($"\t\tconst {type} {name} = {value};\n");
             }
-            Buffer.Append("\n}");
+            Buffer.Append("\t}");
             Buffer.Append("\n}");
             return Buffer.ToString();
         }
@@ -1044,8 +1077,8 @@ namespace %NAMESPACE%
             {
                 File.WriteAllText(Path.Combine(outputDirectory, "BasicTypes.bf"), basicTypes.Replace("%NAMESPACE%", Namespace));
             }
-            
-            if(string.IsNullOrEmpty(subNamespace))
+
+            if (string.IsNullOrEmpty(subNamespace))
             {
                 File.WriteAllText(Path.Combine(outputDirectory, "CustomFunctions.bf"), CORE_CUSTOM_FUNCTIONS.Replace("%NAMESPACE%", Namespace));
             }
@@ -1066,11 +1099,11 @@ namespace %NAMESPACE%
         static bool TryGetVulkanPath(out string path)
         {
             string[] EnvVars = { "VULKAN_SDK", "VK_SDK_PATH" };
-            
-            foreach(var env in EnvVars)
+
+            foreach (var env in EnvVars)
             {
                 path = Environment.GetEnvironmentVariable(env);
-                if(!string.IsNullOrEmpty(path))
+                if (!string.IsNullOrEmpty(path))
                 {
                     path = Path.Combine(path, "Include/vulkan");
                     if (Directory.Exists(path))
@@ -1085,12 +1118,18 @@ namespace %NAMESPACE%
             return false;
         }
 
+        /**
+         
+         */
+
+
+
         static async Task Main(string[] args)
         {
             string inputDirectory;
             if (args.Length == 0)
             {
-                if(!TryGetVulkanPath(out inputDirectory))
+                if (!TryGetVulkanPath(out inputDirectory))
                 {
                     Debug.WriteLine("Couldn't get path to Vulkan include directory! Please specify path as first parameter.");
                     return;
@@ -1111,6 +1150,7 @@ namespace %NAMESPACE%
 
             }
 
+            
             ExportedTypes.Add("VkFlags", "Flags");
             ExportedTypes.Add("VkBool32", "Bool32");
             ExportedTypes.Add("VkDeviceSize", "DeviceSize");
