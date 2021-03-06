@@ -13,13 +13,14 @@ namespace BeefVulkanGenerator
 {
     class Program
     {
-        const string DefaultNamespace = "vk";
+        const string DefaultNamespace = "Vulkan";
 
-        const string WindowsNamespace = "win32";
+        const string WindowsNamespace = "Win32";
         const string MacOSNamespace = "macos";
 
 
         static string Namespace;
+        static string CompileGuard;
 
         static (string, string)[] replaceTypes = new (string, string)[]
         {
@@ -45,8 +46,7 @@ namespace BeefVulkanGenerator
             ("DWORD", "int32")
         };
 
-        static string CORE_BASE_TYPES = @"
-using System;
+        static string CORE_BASE_TYPES = @"using System;
 
 namespace %NAMESPACE%
 {
@@ -81,17 +81,13 @@ namespace %NAMESPACE%
 }
 ";
 
-        static string CORE_CUSTOM_FUNCTIONS = @"
-using System;
+        static string CORE_CUSTOM_FUNCTIONS = @"using System;
 
 namespace %NAMESPACE%
 {
 	public static
 	{
-		public static mixin MakeVersion(uint32 major, uint32 minor, uint32 patch)
-		{
-			(((major) << 22) | ((minor) << 12) | (patch))
-		}
+		public static uint32 MakeVersion(uint32 major, uint32 minor, uint32 patch) => (((major) << 22) | ((minor) << 12) | (patch));
 
 		public static Result<Instance, Result> CreateInstance<Dispatch>(ref InstanceCreateInfo createInfo, AllocationCallbacks* pAllocator, Dispatch d) where Dispatch : var
 		{
@@ -106,8 +102,7 @@ namespace %NAMESPACE%
 }
 ";
 
-        static string WIN32_BASE_TYPES = @"
-using System;
+        static string WIN32_BASE_TYPES = @"using System;
 
 namespace %NAMESPACE%
 {
@@ -148,6 +143,18 @@ namespace %NAMESPACE%
 
         static HashSet<string> Enums = new HashSet<string>();
         static List<string> Enum_StructureTypeValues = new List<string>();
+
+        static void AppendCompileguardStart(StringBuilder sb)
+        {
+            if (!string.IsNullOrEmpty(CompileGuard))
+                sb.Append($"#if {CompileGuard}\n");
+        }
+
+        static void AppendCompileguardEnd(StringBuilder sb)
+        {
+            if(!string.IsNullOrEmpty(CompileGuard))
+                sb.Append("\n#endif");
+        }
 
         enum EResultType
         {
@@ -261,9 +268,12 @@ namespace %NAMESPACE%
             return buffer.ToString();
         }
 
+
         public static string CreateEnums(string sb)
         {
             Buffer.Clear();
+
+            AppendCompileguardStart(Buffer);
             Buffer.Append($"using System;\n\nnamespace {Namespace} \n{{\n");
 
             var result = Regex.Matches(sb.ToString(), @"typedef enum (\w*) \{([^\}]+)\} (\w*);");
@@ -319,12 +329,14 @@ namespace %NAMESPACE%
             }
 
             Buffer.Append("\n}");
+            AppendCompileguardEnd(Buffer);
             return Buffer.ToString();
         }
 
         public static string CreateHandles(string sb)
         {
             Buffer.Clear();
+            AppendCompileguardStart(Buffer);
             Buffer.Append($"using System;\n\nnamespace {Namespace} \n{{\n");
 
             // VK_DEFINE_NON_DISPATCHABLE_HANDLE -> uint64
@@ -348,6 +360,7 @@ namespace %NAMESPACE%
             ForEach(Regex.Matches(sb, @"[^#define]\s(VK_DEFINE_NON_DISPATCHABLE_HANDLE)\((\S+)\)"), true);
 
             Buffer.Append("}");
+            AppendCompileguardEnd(Buffer);
             return Buffer.ToString();
         }
 
@@ -355,6 +368,7 @@ namespace %NAMESPACE%
         {
             Buffer.Clear();
             StringBuilder output = Buffer;
+            AppendCompileguardStart(Buffer);
             output.Append($"using System;\n\nnamespace {Namespace} \n{{\n");
 
             var result = Regex.Matches(sb, @"typedef (\S+) (\w+);");
@@ -378,12 +392,14 @@ namespace %NAMESPACE%
             }
 
             output.Append("\n}");
+            AppendCompileguardEnd(Buffer);
             return output.ToString();
         }
 
         public static string CreateStructsAndUnions(string sb)
         {
             Buffer.Clear();
+            AppendCompileguardStart(Buffer);
             Buffer.Append($"using System;\n\nnamespace {Namespace} \n{{\n");
 
             StringBuilder constructor = new StringBuilder();
@@ -402,7 +418,7 @@ namespace %NAMESPACE%
                     {
                         constructor.Append("\t\tpublic this(");
                     }
-                    
+
 
                     var name = m.Groups[1].Value;
                     var fieldsStr = m.Groups[2].Value;
@@ -470,7 +486,7 @@ namespace %NAMESPACE%
 
                         fieldType = fieldType.Replace("FlagBits", "Flags");
 
-                        if(isUnion)
+                        if (isUnion)
                         {
                             Buffer.Append($"public {fieldType} {fieldName};\n");
                             constructor.Append($"\t\tpublic this({fieldType} _{fieldName}) {{ {fieldName} = _{fieldName}; }}\n");
@@ -487,10 +503,10 @@ namespace %NAMESPACE%
                             constructor.Append($"{fieldType} {fieldName}_,");
                             constructorBody.Append($"\t\t\t{fieldName} = {fieldName}_;\n");
                         }
-                        
+
                     }
 
-                    if(isUnion)
+                    if (isUnion)
                     {
                         Buffer.Append("\n\t\tpublic this() { this = default; }\n");
                         Buffer.Append(constructor);
@@ -508,7 +524,7 @@ namespace %NAMESPACE%
                             Buffer.Append(constructor);
                         }
                     }
-                    
+
 
 
 
@@ -521,6 +537,7 @@ namespace %NAMESPACE%
             ForEach(Regex.Matches(sb, @"typedef union (\w*) \{([^\}]+)\} (\w*);"), true);
 
             Buffer.Append("\n}");
+            AppendCompileguardEnd(Buffer);
             return Buffer.ToString();
         }
 
@@ -528,6 +545,7 @@ namespace %NAMESPACE%
         {
             Buffer.Clear();
 
+            AppendCompileguardStart(Buffer);
             Buffer.Append($"using System;\n\nnamespace {Namespace} \n{{\n");
             Buffer.Append("\tpublic static \n\t{\n");
             var matches = Regex.Matches(sb, @"#define (\w\S+) ([^\n]+)");
@@ -564,7 +582,7 @@ namespace %NAMESPACE%
 
                 if (value.StartsWith("VK_MAKE_VERSION"))
                 {
-                    value = Regex.Replace(value, @"VK_MAKE_VERSION\(([\d\w]+),\s*([\d\w]+),\s([\d\w]+)\)", "MakeVersion!($1, $2, $3)");
+                    value = Regex.Replace(value, @"VK_MAKE_VERSION\(([\d\w]+),\s*([\d\w]+),\s([\d\w]+)\)", "MakeVersion($1, $2, $3)");
                     type = "uint32";
                 }
 
@@ -574,15 +592,16 @@ namespace %NAMESPACE%
                     value = value.Substring(0, commentIndex);
                 }
                 value = value.Trim();
-                if(type == "uint32")
+                if (type == "uint32")
                 {
                     value = value.Replace("U", ""); // The U in some contants causes weird type mismatch so we just remove it.
                 }
 
-                Buffer.Append($"\t\tconst {type} {name} = {value};\n");
+                Buffer.Append($"\t\tpublic const {type} {name} = {value};\n");
             }
             Buffer.Append("\t}");
             Buffer.Append("\n}");
+            AppendCompileguardEnd(Buffer);
             return Buffer.ToString();
         }
 
@@ -605,6 +624,7 @@ namespace %NAMESPACE%
         public static string CreateFunctionPointerTypes(string sb)
         {
             Buffer.Clear();
+            AppendCompileguardStart(Buffer);
             Buffer.Append($"using System;\n\nnamespace {Namespace} \n{{\n");
 
             var matches = Regex.Matches(sb, @"typedef (\S+) \(VKAPI_PTR \*(PFN_\w+)\)\(([^)]*)\);");
@@ -668,6 +688,7 @@ namespace %NAMESPACE%
                 Buffer.Append(");\n\n");
             }
             Buffer.Append("\n}");
+            AppendCompileguardEnd(Buffer);
             return Buffer.ToString();
 
         }
@@ -675,6 +696,7 @@ namespace %NAMESPACE%
         public static string CreateExportedFunctions(string sb)
         {
             Buffer.Clear();
+            AppendCompileguardStart(Buffer);
             Buffer.Append($"using System;\n\nnamespace {Namespace} \n{{\n");
             Buffer.Append("\tpublic static \n\t{\n");
 
@@ -715,18 +737,20 @@ namespace %NAMESPACE%
 
 
                 var func = $"{resultType} {newName}({paramsBuilder})";
-                Buffer.Append($"\t\t[CLink, CallingConvention(.Stdcall)]\n\t\tpublic static extern {func};\n\n");
+                Buffer.Append($"\t\t[CLink]\n\t\tpublic static extern {func};\n\n");
                 //Buffer.Append($"\t\t[CallingConvention(.Stdcall)]\n\t\tpublic static extern {func};\n\n");
 
             }
             Buffer.Append("\n}");
             Buffer.Append("\n}");
+            AppendCompileguardEnd(Buffer);
             return Buffer.ToString();
         }
 
         public static string CreateDispatchers()
         {
             Buffer.Clear();
+            AppendCompileguardStart(Buffer);
             Buffer.Append($"using System;\n\nnamespace {Namespace} \n{{\n");
             {   // Static
                 Buffer.Append("\tpublic struct DispatchLoaderStatic \n\t{\n");
@@ -780,13 +804,14 @@ namespace %NAMESPACE%
                 Buffer.Append("\n\t}\n");
             }
             Buffer.Append("}");
-
+            AppendCompileguardEnd(Buffer);
             return Buffer.ToString();
         }
 
         public static string CreateHandleWrappers()
         {
             Buffer.Clear();
+            AppendCompileguardStart(Buffer);
             Buffer.Append($"using System;\n\nnamespace {DefaultNamespace}\n{{\n");
             bool isDefaultNamespace = DefaultNamespace == Namespace;
 
@@ -819,8 +844,6 @@ namespace %NAMESPACE%
 
                 var lastParam = _params.Last().Value;
                 if (lastParam == "AllocationCallbacks*" || lastParam == "void*" || lastParam == firstParam || !lastParam.EndsWith('*')) continue;
-
-                // @TODO - check if there is uint32* param with name containing Count and skip these functions
 
                 if (_params.Count >= 2)
                 {
@@ -870,8 +893,8 @@ namespace %NAMESPACE%
 
                     callBuilder.Length--;
 
-                    Buffer.Append($"\t\tpublic {f.returnType} {fnName}<Dispatch>({paramBuilder} Dispatch d) where Dispatch : var; => d.{f.name}({callBuilder});\n");
-
+                    string appendReturn = f.returnType != "void" ? " return" : "";
+                    Buffer.Append($"\t\tpublic {f.returnType} {fnName}<Dispatch>({paramBuilder} Dispatch d) where Dispatch : var {{{appendReturn} d.{f.name}({callBuilder}); }}\n");
 
                     if (callBuilder.Length > 4) callBuilder.Remove(0, 5);
                     else callBuilder.Remove(0, 4);
@@ -982,7 +1005,7 @@ namespace %NAMESPACE%
             }
 
             Buffer.Append("}");
-
+            AppendCompileguardEnd(Buffer);
             return Buffer.ToString();
         }
 
@@ -1026,7 +1049,7 @@ namespace %NAMESPACE%
         }
 
 
-        static async Task GenerateFromFile(string filePath, string outputDirectory, string subNamespace = null, string basicTypes = null)
+        static async Task GenerateFromFile(string filePath, string outputDirectory, string subNamespace = null, string basicTypes = null, string compileGuard = null)
         {
             if (string.IsNullOrEmpty(subNamespace))
             {
@@ -1036,6 +1059,8 @@ namespace %NAMESPACE%
             {
                 Namespace = $"{DefaultNamespace}.{subNamespace}";
             }
+
+            CompileGuard = compileGuard;
 
             Functions.Clear();
             AvailableFunctions.Clear();
@@ -1075,7 +1100,11 @@ namespace %NAMESPACE%
 
             if (!string.IsNullOrEmpty(basicTypes))
             {
-                File.WriteAllText(Path.Combine(outputDirectory, "BasicTypes.bf"), basicTypes.Replace("%NAMESPACE%", Namespace));
+                var basicTypesText = basicTypes.Replace("%NAMESPACE%", Namespace);
+                if (!string.IsNullOrEmpty(CompileGuard))
+                    basicTypesText = $"#if {CompileGuard}\n{basicTypesText}\n#endif";
+
+                File.WriteAllText(Path.Combine(outputDirectory, "BasicTypes.bf"), basicTypesText);
             }
 
             if (string.IsNullOrEmpty(subNamespace))
@@ -1118,30 +1147,32 @@ namespace %NAMESPACE%
             return false;
         }
 
-        /**
-         
-         */
-
-
-
         static async Task Main(string[] args)
         {
             string inputDirectory;
+            int argsStart;
             if (args.Length == 0)
             {
+                argsStart = 0;
                 if (!TryGetVulkanPath(out inputDirectory))
                 {
-                    Debug.WriteLine("Couldn't get path to Vulkan include directory! Please specify path as first parameter.");
+                    Console.WriteLine("Couldn't get path to Vulkan include directory! Please specify path as first parameter.");
                     return;
                 }
             }
             else
             {
+                argsStart = 1;
                 inputDirectory = args[0];
+                if(!Directory.Exists(inputDirectory))
+                {
+                    Console.WriteLine("Specified path is not valid.");
+                    return;
+                }
             }
             string outputDirectory = "./Generated";
 
-            for (int i = 0; i < args.Length; i++)
+            for (int i = argsStart; i < args.Length; i++)
             {
                 if (string.Compare(args[i], "--output") == 0)
                 {
@@ -1150,7 +1181,6 @@ namespace %NAMESPACE%
 
             }
 
-            
             ExportedTypes.Add("VkFlags", "Flags");
             ExportedTypes.Add("VkBool32", "Bool32");
             ExportedTypes.Add("VkDeviceSize", "DeviceSize");
@@ -1159,9 +1189,9 @@ namespace %NAMESPACE%
 
             await GenerateFromFile(Path.Combine(inputDirectory, "vulkan_core.h"), outputDirectory, null, CORE_BASE_TYPES);
 
-            await GenerateFromFile(Path.Combine(inputDirectory, "vulkan_win32.h"), outputDirectory + "/win32/", WindowsNamespace, WIN32_BASE_TYPES);
+            await GenerateFromFile(Path.Combine(inputDirectory, "vulkan_win32.h"), outputDirectory + "/win32/", WindowsNamespace, WIN32_BASE_TYPES, "BF_PLATFORM_WINDOWS");
 
-            await GenerateFromFile(Path.Combine(inputDirectory, "vulkan_macos.h"), outputDirectory + "/macos/", MacOSNamespace, null);
+            await GenerateFromFile(Path.Combine(inputDirectory, "vulkan_macos.h"), outputDirectory + "/macos/", MacOSNamespace, null, "BF_PLATFORM_MACOS");
 
         }
     }

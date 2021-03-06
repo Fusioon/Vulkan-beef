@@ -200,7 +200,7 @@ namespace Vulkan
 	typealias WriteDescriptorSetAccelerationStructureNV = WriteDescriptorSetAccelerationStructureKHR;
 	typealias TransformMatrixNV = TransformMatrixKHR;
 	typealias AabbPositionsNV = AabbPositionsKHR;
-	//typealias AccelerationStructureInstanceNV = AccelerationStructureInstanceKHR;
+	typealias AccelerationStructureInstanceNV = AccelerationStructureInstanceKHR;
 	typealias QueryPoolCreateInfoINTEL = QueryPoolPerformanceQueryCreateInfoINTEL;
 	typealias PhysicalDeviceScalarBlockLayoutFeaturesEXT = PhysicalDeviceScalarBlockLayoutFeatures;
 	typealias PhysicalDeviceBufferAddressFeaturesEXT = PhysicalDeviceBufferDeviceAddressFeaturesEXT;

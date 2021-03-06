@@ -1,5 +1,5 @@
+#if BF_PLATFORM_WINDOWS
 using System;
-
 
 namespace Vulkan.Win32
 {
@@ -12,8 +12,9 @@ namespace Vulkan.Win32
 	[CRepr]
 	public struct SECURITY_ATTRIBUTES
 	{
-		int32 nLength;
-		void* lpSecurityDescriptor;
-		Windows.IntBool bInheritHandle;
+		public int32 nLength;
+		public void* lpSecurityDescriptor;
+		public Windows.IntBool bInheritHandle;
 	}
 }
+#endif

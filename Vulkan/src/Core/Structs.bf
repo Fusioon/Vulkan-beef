@@ -7541,8 +7541,10 @@ namespace Vulkan
 		}
 	}
 
-	[CRepr][Obsolete("Couldn't generate Beef representation for this type.", false)]
-public struct AccelerationStructureInstanceKHR { /*
+	[CRepr, Obsolete("Couldn't generate Beef representation for this type.", false)]
+	public struct AccelerationStructureInstanceKHR 
+	{ 
+	/*
     VkTransformMatrixKHR          transform;
     uint32                      instanceCustomIndex:24;
     uint32                      mask:8;
@@ -9060,99 +9062,79 @@ public struct AccelerationStructureInstanceKHR { /*
 		}
 	}
 
-	[CRepr]
-	[Union]
+	[CRepr, Union]
 	public struct ClearColorValue 
 	{
-		public float[4] float32 = default;
-		public int32[4] int32 = default;
-		public uint32[4] uint32 = default;
+		public float[4] float32;
+		public int32[4] int32;
+		public uint32[4] uint32;
 
-		public this() {}
-		public this(float[4] float32_,int32[4] int32_,uint32[4] uint32_)
-		{
-			float32 = float32_;
-			int32 = int32_;
-			uint32 = uint32_;
-		}
+		public this() { this = default; }
+		public this(float[4] _float32) { float32 = _float32; }
+		public this(int32[4] _int32) { int32 = _int32; }
+		public this(uint32[4] _uint32) { uint32 = _uint32; }
 	}
 
-	[CRepr]
-	[Union]
+	[CRepr, Union]
 	public struct ClearValue 
 	{
-		public ClearColorValue color = default;
-		public ClearDepthStencilValue depthStencil = default;
+		public ClearColorValue color;
+		public ClearDepthStencilValue depthStencil;
 
-		public this() {}
-		public this(ClearColorValue color_,ClearDepthStencilValue depthStencil_)
-		{
-			color = color_;
-			depthStencil = depthStencil_;
-		}
+		public this() { this = default; }
+		public this(ClearColorValue _color) { color = _color; }
+		public this(ClearDepthStencilValue _depthStencil) { depthStencil = _depthStencil; }
 	}
 
-	[CRepr]
-	[Union]
+	[CRepr, Union]
 	public struct PerformanceCounterResultKHR 
 	{
-		public int32 int32 = default;
-		public int64 int64 = default;
-		public uint32 uint32 = default;
-		public uint64 uint64 = default;
-		public float float32 = default;
-		public double float64 = default;
+		public int32 int32;
+		public int64 int64;
+		public uint32 uint32;
+		public uint64 uint64;
+		public float float32;
+		public double float64;
 
-		public this() {}
-		public this(int32 int32_,int64 int64_,uint32 uint32_,uint64 uint64_,float float32_,double float64_)
-		{
-			int32 = int32_;
-			int64 = int64_;
-			uint32 = uint32_;
-			uint64 = uint64_;
-			float32 = float32_;
-			float64 = float64_;
-		}
+		public this() { this = default; }
+		public this(int32 _int32) { int32 = _int32; }
+		public this(int64 _int64) { int64 = _int64; }
+		public this(uint32 _uint32) { uint32 = _uint32; }
+		public this(uint64 _uint64) { uint64 = _uint64; }
+		public this(float _float32) { float32 = _float32; }
+		public this(double _float64) { float64 = _float64; }
 	}
 
-	[CRepr]
-	[Union]
+	[CRepr, Union]
 	public struct PipelineExecutableStatisticValueKHR 
 	{
-		public Bool32 b32 = default;
-		public int64 i64 = default;
-		public uint64 u64 = default;
-		public double f64 = default;
+		public Bool32 b32;
+		public int64 i64;
+		public uint64 u64;
+		public double f64;
 
-		public this() {}
-		public this(Bool32 b32_,int64 i64_,uint64 u64_,double f64_)
-		{
-			b32 = b32_;
-			i64 = i64_;
-			u64 = u64_;
-			f64 = f64_;
-		}
+		public this() { this = default; }
+		public this(Bool32 _b32) { b32 = _b32; }
+		public this(int64 _i64) { i64 = _i64; }
+		public this(uint64 _u64) { u64 = _u64; }
+		public this(double _f64) { f64 = _f64; }
 	}
 
-	[CRepr]
-	[Union]
+	[CRepr, Union]
 	public struct PerformanceValueDataINTEL 
 	{
-		public uint32 value32 = default;
-		public uint64 value64 = default;
-		public float valueFloat = default;
-		public Bool32 valueBool = default;
-		public char8* valueString = default;
+		public uint32 value32;
+		public uint64 value64;
+		public float valueFloat;
+		public Bool32 valueBool;
+		public char8* valueString;
 
-		public this() {}
-		public this(uint32 value32_,uint64 value64_,float valueFloat_,Bool32 valueBool_,char8* valueString_)
-		{
-			value32 = value32_;
-			value64 = value64_;
-			valueFloat = valueFloat_;
-			valueBool = valueBool_;
-			valueString = valueString_;
-		}
+		public this() { this = default; }
+		public this(uint32 _value32) { value32 = _value32; }
+		public this(uint64 _value64) { value64 = _value64; }
+		public this(float _valueFloat) { valueFloat = _valueFloat; }
+		public this(Bool32 _valueBool) { valueBool = _valueBool; }
+		public this(char8* _valueString) { valueString = _valueString; }
 	}
 
 
