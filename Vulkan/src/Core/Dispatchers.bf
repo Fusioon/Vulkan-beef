@@ -368,6 +368,16 @@ namespace Vulkan
 		public void vkDestroyIndirectCommandsLayoutNV(Device device,IndirectCommandsLayoutNV indirectCommandsLayout,AllocationCallbacks* pAllocator) => Vulkan.vkDestroyIndirectCommandsLayoutNV(device,indirectCommandsLayout,pAllocator);
 
 	}
+
+	// Due to a bug in Beef only functions can be called from generics constrained to var and not function types, so this currently does not work
+	// This limitation can be worked around by defining type with the appropriate function which will then call function stored in field
+	// Example:
+	// struct MessengerLoaderDynamic {
+	// 		public PFN_vkCreateDebugUtilsMessengerEXT createMessenger;
+	//		public Result vkCreateDebugUtilsMessengerEXT(Instance instance, DebugUtilsMessengerCreateInfoEXT* pCreateInfo, AllocationCallbacks* pAllocator, DebugUtilsMessengerEXT* pMessenger) => createMessenger;
+	// }
+
+	/*
 	public struct DispatchLoaderDynamic 
 	{
 		public PFN_vkCreateInstance vkCreateInstance = null;
@@ -734,4 +744,5 @@ namespace Vulkan
 		public PFN_vkDestroyIndirectCommandsLayoutNV vkDestroyIndirectCommandsLayoutNV = null;
 
 	}
+	*/
 }

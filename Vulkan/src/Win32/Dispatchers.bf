@@ -20,7 +20,7 @@ namespace Vulkan.Win32
 		public Result vkGetDeviceGroupSurfacePresentModes2EXT(Device device,PhysicalDeviceSurfaceInfo2KHR* pSurfaceInfo,DeviceGroupPresentModeFlagsKHR* pModes) => Vulkan.Win32.vkGetDeviceGroupSurfacePresentModes2EXT(device,pSurfaceInfo,pModes);
 
 	}
-	public struct DispatchLoaderDynamic 
+	/*public struct DispatchLoaderDynamic 
 	{
 		public PFN_vkCreateWin32SurfaceKHR vkCreateWin32SurfaceKHR = null;
 		public PFN_vkGetPhysicalDeviceWin32PresentationSupportKHR vkGetPhysicalDeviceWin32PresentationSupportKHR = null;
@@ -36,6 +36,6 @@ namespace Vulkan.Win32
 		public PFN_vkReleaseFullScreenExclusiveModeEXT vkReleaseFullScreenExclusiveModeEXT = null;
 		public PFN_vkGetDeviceGroupSurfacePresentModes2EXT vkGetDeviceGroupSurfacePresentModes2EXT = null;
 
-	}
+	}*/
 }
 #endif
