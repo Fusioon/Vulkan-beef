@@ -13,14 +13,9 @@ namespace Vulkan
 		{
 			this = value ? 1 : 0;
 		}
-		public static implicit operator Bool32(bool value)
-		{
-			return Bool32(value);
-		}
-		public static operator bool(Bool32 b)
-		{
-			return (.)b;
-		}
+
+		public static implicit operator Bool32(bool value) => Bool32(value);
+		public static operator bool(Bool32 b) => b != 0;
 	}
 
 	struct Handle : uint

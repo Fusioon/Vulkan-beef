@@ -15,8 +15,8 @@ namespace Vulkan
 		public const uint32 VK_REMAINING_ARRAY_LAYERS = (~0);
 		public const uint64 VK_WHOLE_SIZE = (~0UL);
 		public const uint32 VK_ATTACHMENT_UNUSED = (~0);
-		public const uint32 VK_TRUE = 1;
-		public const uint32 VK_FALSE = 0;
+		public const Bool32 VK_TRUE = (Bool32)1;
+		public const Bool32 VK_FALSE = (Bool32)0;
 		public const uint32 VK_QUEUE_FAMILY_IGNORED = (~0);
 		public const uint32 VK_SUBPASS_EXTERNAL = (~0);
 		public const uint32 VK_MAX_PHYSICAL_DEVICE_NAME_SIZE = 256;

@@ -20,22 +20,5 @@ namespace Vulkan.Win32
 		public Result vkGetDeviceGroupSurfacePresentModes2EXT(Device device,PhysicalDeviceSurfaceInfo2KHR* pSurfaceInfo,DeviceGroupPresentModeFlagsKHR* pModes) => Vulkan.Win32.vkGetDeviceGroupSurfacePresentModes2EXT(device,pSurfaceInfo,pModes);
 
 	}
-	/*public struct DispatchLoaderDynamic 
-	{
-		public PFN_vkCreateWin32SurfaceKHR vkCreateWin32SurfaceKHR = null;
-		public PFN_vkGetPhysicalDeviceWin32PresentationSupportKHR vkGetPhysicalDeviceWin32PresentationSupportKHR = null;
-		public PFN_vkGetMemoryWin32HandleKHR vkGetMemoryWin32HandleKHR = null;
-		public PFN_vkGetMemoryWin32HandlePropertiesKHR vkGetMemoryWin32HandlePropertiesKHR = null;
-		public PFN_vkImportSemaphoreWin32HandleKHR vkImportSemaphoreWin32HandleKHR = null;
-		public PFN_vkGetSemaphoreWin32HandleKHR vkGetSemaphoreWin32HandleKHR = null;
-		public PFN_vkImportFenceWin32HandleKHR vkImportFenceWin32HandleKHR = null;
-		public PFN_vkGetFenceWin32HandleKHR vkGetFenceWin32HandleKHR = null;
-		public PFN_vkGetMemoryWin32HandleNV vkGetMemoryWin32HandleNV = null;
-		public PFN_vkGetPhysicalDeviceSurfacePresentModes2EXT vkGetPhysicalDeviceSurfacePresentModes2EXT = null;
-		public PFN_vkAcquireFullScreenExclusiveModeEXT vkAcquireFullScreenExclusiveModeEXT = null;
-		public PFN_vkReleaseFullScreenExclusiveModeEXT vkReleaseFullScreenExclusiveModeEXT = null;
-		public PFN_vkGetDeviceGroupSurfacePresentModes2EXT vkGetDeviceGroupSurfacePresentModes2EXT = null;
-
-	}*/
 }
 #endif

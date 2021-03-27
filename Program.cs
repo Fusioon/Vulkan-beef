@@ -18,6 +18,7 @@ namespace BeefVulkanGenerator
         const string WindowsNamespace = "Win32";
         const string MacOSNamespace = "macos";
 
+        const bool GENERATE_DYNAMIC_DISPATCH = false;
 
         static string Namespace;
         static string CompileGuard;
@@ -61,14 +62,9 @@ namespace %NAMESPACE%
 		{
 			this = value ? 1 : 0;
 		}
-		public static implicit operator Bool32(bool value)
-		{
-			return Bool32(value);
-		}
-		public static operator bool(Bool32 b)
-		{
-			return (.)b;
-		}
+
+		public static implicit operator Bool32(bool value) => Bool32(value);
+		public static operator bool(Bool32 b) => b != 0;
 	}
 
 	struct Handle : uint
@@ -551,16 +547,22 @@ namespace %NAMESPACE%
             var matches = Regex.Matches(sb, @"#define (\w\S+) ([^\n]+)");
             foreach (Match m in matches)
             {
-
                 var name = m.Groups[1].Value;
                 var value = m.Groups[2].Value.Trim();
+
+                if (name == "VK_TRUE" || name == "VK_FALSE")
+                {
+                    Buffer.Append($"\t\tpublic const Bool32 {name} = (Bool32){value};\n");
+                    continue;
+                }
+
+
                 var type = "let";
                 if (name.Contains('(') || name.EndsWith("_H_"))
                 {
                     Console.WriteLine("Skipping define: " + name);
                     continue;
                 }
-
 
                 value = value.Replace("ULL", "UL");
                 if (value[0] == '"') type = "String";
@@ -725,9 +727,9 @@ namespace %NAMESPACE%
                     foreach (var fp in funcParams)
                     {
                         string pType = TransformTypeNameToNew(fp.Value);
-                        paramsBuilder.Append($"{pType} {fp.Key},");
+                        paramsBuilder.Append($"{pType} {fp.Key}, ");
                     }
-                    paramsBuilder.Length--;
+                    paramsBuilder.Length -= 2;
                 }
 
 
@@ -786,7 +788,8 @@ namespace %NAMESPACE%
                 Buffer.Append("\n\t}\n");
             }
 
-            {   // Dynamic
+            if(GENERATE_DYNAMIC_DISPATCH)
+            {   // Dynamic 
                 Buffer.Append("\tpublic struct DispatchLoaderDynamic \n\t{\n");
                 foreach (var fn in Functions)
                 {
